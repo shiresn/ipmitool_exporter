@@ -10,7 +10,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"fmt"
      
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
@@ -306,7 +305,6 @@ func ipmitoolOutput(target ipmiTarget, command string) (string, error) {
 		cmdConfig = append(cmdConfig, "-H", target.host)
 	}
 	cmdConfig = append(cmdConfig, cmdCommand...)
-	fmt.Printf("cmdConfig: %s\n", cmdConfig)
 	cmd := exec.Command("ipmitool", cmdConfig...)
 	var outBuf bytes.Buffer
 	cmd.Stdout = &outBuf
@@ -325,7 +323,6 @@ func ipmitoolOutput(target ipmiTarget, command string) (string, error) {
 			}
 		} else {
 			log.Errorf("Error while calling %s for %s: %s", command, targetName(target.host), cmd)
-			fmt.Printf("err: %s\n", err)
 			return "", err
 			//log.Fatal(err)
 		}
@@ -338,7 +335,6 @@ func splitSensorOutput(impitoolOutput string) ([]sensorData, error) {
 
 	scanner := bufio.NewScanner(strings.NewReader(impitoolOutput))
 	var err error
-	// fmt.Printf("err: %s\n", err)
 
 	for scanner.Scan() {
 		var data sensorData
@@ -348,7 +344,6 @@ func splitSensorOutput(impitoolOutput string) ([]sensorData, error) {
 			splittedL := strings.Split(trimmedL, "|")
 			//skip error message cause by openbmc
 			if len(splittedL) <= 4 {
-				fmt.Printf("len: %s\n", line)
 				continue
 			}
 			data.Name = splittedL[0]
@@ -658,7 +653,6 @@ func getChassisPowerState(ipmitoolOutput string) (int, error) {
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		fmt.Printf("len: %s\n", line)
 		if len(line) > 0 {
 			 if strings.Contains(line,"Chassis") == true {
 				value := ipmiCurrentPowerRegex.FindStringSubmatch(line)[1]
