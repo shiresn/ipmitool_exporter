@@ -1,0 +1,13 @@
+version: '3.7'
+services:
+  ipmitool_exporter:
+    build:
+      context: .
+    command: --config.file /config.yml --web.listen-address :9290
+    volumes:
+      - ./ipmi_remote.yml:/config.yml:ro    # replace with your own config
+    ports:
+      - 9290:9290                           # bind on 0.0.0.0
+      # - 127.0.0.1:9290:9290               # or bind to specific interface
+    hostname: ipmitool_exporter_docker
+    restart: unless-stopped
