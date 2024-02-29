@@ -10,7 +10,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
+     
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 )
@@ -180,6 +180,13 @@ var (
 		nil,
 	)
 
+        joulesDesc = prometheus.NewDesc(
+                prometheus.BuildFQName(namespace, "current", "joules"),
+                "Current reading in Joules.",
+                []string{"name"},
+                nil,
+        )
+
 	currentStateDesc = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "current", "state"),
 		"Reported state of a current sensor (0=ok, 1=critical, 2=non-recoverable, 3=non-critical, 4=not-specified).",
@@ -298,7 +305,6 @@ func ipmitoolOutput(target ipmiTarget, command string) (string, error) {
 		cmdConfig = append(cmdConfig, "-H", target.host)
 	}
 	cmdConfig = append(cmdConfig, cmdCommand...)
-
 	cmd := exec.Command("ipmitool", cmdConfig...)
 	var outBuf bytes.Buffer
 	cmd.Stdout = &outBuf
@@ -317,6 +323,7 @@ func ipmitoolOutput(target ipmiTarget, command string) (string, error) {
 			}
 		} else {
 			log.Errorf("Error while calling %s for %s: %s", command, targetName(target.host), cmd)
+			return "", err
 			//log.Fatal(err)
 		}
 	}
@@ -327,15 +334,18 @@ func splitSensorOutput(impitoolOutput string) ([]sensorData, error) {
 	var result []sensorData
 
 	scanner := bufio.NewScanner(strings.NewReader(impitoolOutput))
-
 	var err error
 
 	for scanner.Scan() {
 		var data sensorData
 		line := scanner.Text()
-		if len(line) > 0 {
+		if len(line) >= 0 {
 			trimmedL := strings.ReplaceAll(line, " ", "")
 			splittedL := strings.Split(trimmedL, "|")
+			//skip error message cause by openbmc
+			if len(splittedL) <= 4 {
+				continue
+			}
 			data.Name = splittedL[0]
 			valueS := splittedL[1]
 			convValueS, convErr := strconv.ParseUint(valueS, 0, 64)
@@ -352,7 +362,7 @@ func splitSensorOutput(impitoolOutput string) ([]sensorData, error) {
 			data.Type = splittedL[2]
 			data.State = splittedL[3]
 			result = append(result, data)
-		}
+			}
 	}
 	return result, err
 }
@@ -644,9 +654,11 @@ func getChassisPowerState(ipmitoolOutput string) (int, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		if len(line) > 0 {
-			value := ipmiCurrentPowerRegex.FindStringSubmatch(line)[1]
-			if value == "on" {
+			 if strings.Contains(line,"Chassis") == true {
+				value := ipmiCurrentPowerRegex.FindStringSubmatch(line)[1]
+				if value == "on" {
 				return 1, err
+				}
 			}
 		}
 	}
@@ -739,8 +751,14 @@ func collectSensorMonitoring(ch chan<- prometheus.Metric, target ipmiTarget) (in
 			collectTypedSensor(ch, fanSpeedDesc, fanSpeedStateDesc, state, data)
 		case "degrees C":
 			collectTypedSensor(ch, temperatureDesc, temperatureStateDesc, state, data)
+                case "degreesC":
+                        collectTypedSensor(ch, temperatureDesc, temperatureStateDesc, state, data)
 		case "Ampers":
 			collectTypedSensor(ch, currentDesc, currentStateDesc, state, data)
+                case "Amps":
+                        collectTypedSensor(ch, currentDesc, currentStateDesc, state, data)
+                case "Joules":
+                        collectTypedSensor(ch, joulesDesc, currentStateDesc, state, data)
 		case "Volts":
 			collectTypedSensor(ch, voltageDesc, voltageStateDesc, state, data)
 		case "Watts":
